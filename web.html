@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Master Bot Panel</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; padding: 20px; }
+    h2 { margin-bottom: 20px; color: #38bdf8; text-align: center; font-size: 24px; }
+    .server-tabs { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 10px; border-bottom: 1px solid #334155; }
+    .tab-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; white-space: nowrap; }
+    .tab-btn.active { background: #0284c7; color: #fff; border-color: #38bdf8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+    .status-badge { font-size: 12px; font-weight: bold; padding: 4px 8px; border-radius: 4px; }
+    .online { background: #065f46; color: #34d399; }
+    .offline { background: #881337; color: #f87171; }
+    .btn-group { display: flex; gap: 8px; }
+    .btn { flex: 1; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: #fff; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .btn-start { background: #16a34a; }
+    .btn-stop { background: #dc2626; }
+    .chat-box { display: flex; gap: 5px; }
+    .chat-input { flex: 1; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px; border-radius: 6px; font-size: 13px; }
+    .btn-send { background: #2563eb; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .log-window { background: #090d16; color: #cbd5e1; height: 130px; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 11px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #1e293b; }
+  </style>
+</head>
+<body>
+
+  <h2>🌐 Master Panel - Manager Multi Server</h2>
+  <div class="server-tabs" id="tabs"></div>
+  <div class="grid" id="accGrid"></div>
+
+  <script>
+    const serverNodes = [
+      { id: "SV1", name: "Server Host 1", url: "https://ip-hoac-domain-host-1.com" },
+      { id: "SV2", name: "Server Host 2", url: "https://ip-hoac-domain-host-2.com" }
+    ];
+
+    const sockets = {};
+    const store = {};
+    let activeServerId = serverNodes[0].id;
+
+    serverNodes.forEach(node => {
+      store[node.id] = { accounts: [], status: {}, logs: {} };
+      const socket = io(node.url, { transports: ['websocket', 'polling'] });
+      sockets[node.id] = socket;
+
+      socket.on('init_data', data => {
+        store[node.id].accounts = data.accounts;
+        data.accounts.forEach(acc => {
+          store[node.id].status[acc] = 'OFFLINE';
+          store[node.id].logs[acc] = [];
+        });
+        if (activeServerId === node.id) renderGrid();
+      });
+
+      socket.on('bot_status', data => {
+        store[node.id].status[data.username] = data.status;
+        if (activeServerId === node.id) renderGrid();
+      });
+
+      socket.on('bot_log', data => {
+        if (!store[node.id].logs[data.username]) store[node.id].logs[data.username] = [];
+        store[node.id].logs[data.username].push(data.log);
+        if (store[node.id].logs[data.username].length > 50) store[node.id].logs[data.username].shift();
+        if (activeServerId === node.id) updateLog(data.username);
+      });
+    });
+
+    function renderTabs() {
+      document.getElementById('tabs').innerHTML = serverNodes.map(node => `
+        <button class="tab-btn ${node.id === activeServerId ? 'active' : ''}" onclick="switchTab('${node.id}')">
+          ${node.name} (${node.id})
+        </button>
+      `).join('');
+    }
+
+    function switchTab(id) {
+      activeServerId = id;
+      renderTabs();
+      renderGrid();
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('accGrid');
+      const data = store[activeServerId];
+      if (!data || !data.accounts.length) {
+        grid.innerHTML = '<p style="color: #94a3b8;">Đang kết nối tới Server Host...</p>';
+        return;
+      }
+
+      grid.innerHTML = data.accounts.map(acc => {
+        const st = data.status[acc] || 'OFFLINE';
+        const logs = (data.logs[acc] || []).join('\n');
+        return `
+          <div class="card">
+            <div class="card-head">
+              <strong>🤖 ${acc}</strong>
+              <span class="status-badge ${st === 'ONLINE' ? 'online' : 'offline'}">${st}</span>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-start" onclick="sendAction('start_bot', '${acc}')">START</button>
+              <button class="btn btn-stop" onclick="sendAction('stop_bot', '${acc}')">STOP</button>
+            </div>
+            <div class="chat-box">
+              <input type="text" id="inp_${acc}" class="chat-input" placeholder="Lệnh (.invclick 11...)" />
+              <button class="btn-send" onclick="sendChat('${acc}')">Gửi</button>
+            </div>
+            <div class="log-window" id="log_${acc}">${logs}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function sendAction(event, username) {
+      sockets[activeServerId].emit(event, { username });
+    }
+
+    function sendChat(username) {
+      const inp = document.getElementById(`inp_${username}`);
+      if (inp && inp.value) {
+        sockets[activeServerId].emit('send_chat', { username, message: inp.value });
+        inp.value = '';
+      }
+    }
+
+    function updateLog(username) {
+      const box = document.getElementById(`log_${username}`);
+      if (box) {
+        box.innerText = (store[activeServerId].logs[username] || []).join('\n');
+        box.scrollTop = box.scrollHeight;
+      }
+    }
+
+    renderTabs();
+  </script>
+</body>
+</html>
