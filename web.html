@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft Bot Master Control Panel</title>
+  <!-- Socket.io Client -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: rgba(18, 26, 43, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-yellow: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.12) 0%, transparent 40%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    /* Header Styling */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .logo-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-title i {
+      font-size: 28px;
+      color: var(--accent-blue);
+      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+    }
+
+    .logo-title h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Connection Config Bar */
+    .host-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      padding: 12px 20px;
+      border-radius: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .host-bar input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--card-border);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      flex: 1;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .host-bar input:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Global Action Buttons */
+    .btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-green { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
+    .btn-green:hover { background: rgba(16, 185, 129, 0.3); }
+
+    .btn-red { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #f87171; }
+    .btn-red:hover { background: rgba(239, 68, 68, 0.3); }
+
+    .btn-blue { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; }
+    .btn-blue:hover { background: rgba(59, 130, 246, 0.3); }
+
+    /* Grid Layout for Bots */
+    .bot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 20px;
+    }
+
+    /* Bot Card Component */
+    .bot-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(16px);
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bot-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+
+    .bot-card.online::before { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+    .bot-card.connecting::before { background: var(--accent-yellow); box-shadow: 0 0 10px var(--accent-yellow); }
+    .bot-card.offline::before { background: var(--accent-red); }
+
+    .bot-card:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.4);
+    }
+
+    .bot-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .bot-name {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Status Badge */
+    .badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-online { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-connecting { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); animation: pulse 1.5s infinite; }
+    .badge-offline { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .bot-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .bot-meta div span {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* Terminal Console */
+    .console-box {
+      background: #05070d;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      height: 140px;
+      overflow-y: auto;
+      padding: 10px;
+      font-family: 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      scroll-behavior: smooth;
+    }
+
+    .console-box::-webkit-scrollbar {
+      width: 4px;
+    }
+    .console-box::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .log-line {
+      word-break: break-all;
+      color: #d1d5db;
+    }
+
+    /* Chat Control Input */
+    .cmd-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .cmd-group input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--card-border);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .cmd-group input:focus {
+      border-color: var(--accent-purple);
+    }
+
+    .bot-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .bot-actions .btn {
+      flex: 1;
+      justify-content: center;
+      padding: 6px 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-title">
+      <i class="fa-solid fa-server"></i>
+      <h1>Master Control Panel</h1>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn btn-green" onclick="startAll()"><i class="fa-solid fa-play"></i> Bật Tất Cả</button>
+      <button class="btn btn-red" onclick="stopAll()"><i class="fa-solid fa-stop"></i> Tắt Tất Cả</button>
+    </div>
+  </header>
+
+  <!-- Server Host Connection Bar -->
+  <div class="host-bar">
+    <i class="fa-solid fa-network-wired" style="color: var(--accent-blue);"></i>
+    <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="Nhập URL Node Host (ví dụ: http://vps-ip:3000)">
+    <button class="btn btn-blue" onclick="connectHost()"><i class="fa-solid fa-plug"></i> Kết Nối Host</button>
+  </div>
+
+  <!-- Bot Grid Display -->
+  <div class="bot-grid" id="botGrid">
+    <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px 0;">
+      Vui lòng nhập URL Node Host và nhấn <b>"Kết Nối Host"</b> để tải danh sách Bot.
+    </div>
+  </div>
+
+  <script>
+    let socket = null;
+    let currentServerId = "";
+
+    function connectHost() {
+      const url = document.getElementById("serverUrl").value.trim();
+      if (!url) return alert("Vui lòng nhập URL Server!");
+
+      if (socket) socket.disconnect();
+
+      console.log("Đang kết nối tới: " + url);
+      socket = io(url, { transports: ["websocket", "polling"] });
+
+      socket.on("connect", () => {
+        console.log("Đã kết nối Socket.io!");
+      });
+
+      socket.on("init_data", (data) => {
+        currentServerId = data.serverId;
+        renderBots(data.accounts, data.statuses);
+      });
+
+      socket.on("bot_status", (data) => {
+        updateBotStatus(data);
+      });
+
+      socket.on("bot_log", (data) => {
+        appendBotLog(data.username, data.log);
+      });
+
+      socket.on("disconnect", () => {
+        console.log("Mất kết nối với Host.");
+      });
+    }
+
+    function renderBots(accounts, statuses) {
+      const grid = document.getElementById("botGrid");
+      grid.innerHTML = "";
+
+      accounts.forEach(acc => {
+        const info = statuses[acc] || { status: 'offline', cluster: 'Lobby/Unknown', ipAddress: 'Chưa kết nối', uptime: 0, logs: [] };
+
+        const card = document.createElement("div");
+        card.className = `bot-card ${info.status}`;
+        card.id = `card-${acc}`;
+
+        card.innerHTML = `
+          <div class="bot-header">
+            <div class="bot-name"><i class="fa-solid fa-robot"></i> ${acc}</div>
+            <span class="badge badge-${info.status}" id="badge-${acc}">${info.status}</span>
+          </div>
+
+          <div class="bot-meta">
+            <div>Cụm: <span id="cluster-${acc}">${info.cluster}</span></div>
+            <div>IP/Proxy: <span id="ip-${acc}" style="font-size:10px;">${info.ipAddress}</span></div>
+          </div>
+
+          <div class="console-box" id="logs-${acc}">
+            ${info.logs.map(l => `<div class="log-line">${l}</div>`).join('')}
+          </div>
+
+          <div class="cmd-group">
+            <input type="text" id="input-${acc}" placeholder="Gõ lệnh / chat (.slot, .invclick...)" onkeydown="if(event.key==='Enter') sendChat('${acc}')">
+            <button class="btn btn-blue" onclick="sendChat('${acc}')"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+
+          <div class="bot-actions">
+            <button class="btn btn-green" onclick="startBot('${acc}')"><i class="fa-solid fa-play"></i> Start</button>
+            <button class="btn btn-red" onclick="stopBot('${acc}')"><i class="fa-solid fa-pause"></i> Stop</button>
+            <button class="btn btn-blue" onclick="restartBot('${acc}')"><i class="fa-solid fa-rotate-right"></i></button>
+          </div>
+        `;
+
+        grid.appendChild(card);
+        scrollConsole(acc);
+      });
+    }
+
+    function updateBotStatus(data) {
+      const { username, status, cluster, ipAddress } = data;
+
+      const card = document.getElementById(`card-${username}`);
+      const badge = document.getElementById(`badge-${username}`);
+      const clusterEl = document.getElementById(`cluster-${username}`);
+      const ipEl = document.getElementById(`ip-${username}`);
+
+      if (card) card.className = `bot-card ${status}`;
+      if (badge) {
+        badge.className = `badge badge-${status}`;
+        badge.innerText = status;
+      }
+      if (clusterEl) clusterEl.innerText = cluster;
+      if (ipEl) ipEl.innerText = ipAddress;
+    }
+
+    function appendBotLog(username, logHtml) {
+      const box = document.getElementById(`logs-${username}`);
+      if (box) {
+        const line = document.createElement("div");
+        line.className = "log-line";
+        line.innerHTML = logHtml;
+        box.appendChild(line);
+
+        if (box.children.length > 150) box.removeChild(box.firstChild);
+        scrollConsole(username);
+      }
+    }
+
+    function scrollConsole(username) {
+      const box = document.getElementById(`logs-${username}`);
+      if (box) box.scrollTop = box.scrollHeight;
+    }
+
+    function startAll() { if (socket) socket.emit("start_all"); }
+    function stopAll() { if (socket) socket.emit("stop_all"); }
+    function startBot(username) { if (socket) socket.emit("start_bot", { username }); }
+    function stopBot(username) { if (socket) socket.emit("stop_bot", { username }); }
+    function restartBot(username) { if (socket) socket.emit("restart_bot", { username }); }
+
+    function sendChat(username) {
+      const input = document.getElementById(`input-${username}`);
+      const msg = input.value.trim();
+      if (msg && socket) {
+        socket.emit("send_chat", { username, message: msg });
+        input.value = "";
+      }
+    }
+  </script>
+</body>
+</html>
